@@ -1,4 +1,4 @@
-package com.example.dynamite
+package com.example.dynamite.bots
 
 import com.softwire.dynamite.bot.Bot
 import com.softwire.dynamite.game.Gamestate
@@ -6,7 +6,8 @@ import com.softwire.dynamite.game.Move
 import com.softwire.dynamite.game.Round
 import kotlin.math.floor
 
-class MyBot : Bot {
+
+class DynamiteOnDraw : Bot {
     override fun makeMove(gamestate: Gamestate): Move {
         if (this.numberOfDynamitesPlayed(gamestate) == 100) {
             return this.randomMove

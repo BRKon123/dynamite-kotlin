@@ -1,4 +1,4 @@
-package com.example.dynamite
+package com.example.dynamite.bots
 
 import com.softwire.dynamite.bot.Bot
 import com.softwire.dynamite.game.Gamestate
@@ -6,30 +6,25 @@ import com.softwire.dynamite.game.Move
 import com.softwire.dynamite.game.Round
 import kotlin.math.floor
 
-class MyBot : Bot {
+class BeatTheirPreviousMoveBot : Bot {
     override fun makeMove(gamestate: Gamestate): Move {
-        if (this.numberOfDynamitesPlayed(gamestate) == 100) {
-            return this.randomMove
-        } else if (gamestate.rounds.size == 0) {
+        if (gamestate.rounds.size == 0) {
             return this.randomMove
         } else {
             val lastRound = gamestate.rounds[gamestate.rounds.size - 1] as Round
-            return if (lastRound.p1 == lastRound.p2) Move.D else randomMove
+            return this.getMoveThatBeats(lastRound.p2)
         }
     }
 
-    private fun numberOfDynamitesPlayed(gamestate: Gamestate): Int {
-        var dynamites = 0
-        val var3: Iterator<*> = gamestate.rounds.iterator()
-
-        while (var3.hasNext()) {
-            val round = var3.next() as Round
-            if (round.p1 == Move.D) {
-                ++dynamites
-            }
+    private fun getMoveThatBeats(theirLastMove: Move): Move {
+        return when (theirLastMove) {
+            Move.R -> Move.P
+            Move.P -> Move.S
+            Move.S -> Move.R
+            Move.D -> Move.W
+            Move.W -> Move.R
+            else -> throw RuntimeException("Invalid last move from P2")
         }
-
-        return dynamites
     }
 
     val randomMove: Move
