@@ -28,23 +28,42 @@ data class ExperienceData(
 class DQNFeatureExtractor private constructor() {
     companion object {
         private val moveSet = listOf("R", "P", "S", "D", "W", "N")
+        private val json = Json(JsonConfiguration.Stable.copy(ignoreUnknownKeys = true))
 
         @JvmStatic
         fun generateExperiencesJson(inputFilePath: String, outputFilePath: String, lastNGames: Int, lastXAfterDraws: Int) {
-            val json = File(inputFilePath).readText()
-            val gameData = parseGameData(json)
-            val experiences = extractFeatures(gameData, lastNGames, lastXAfterDraws)
-            val jsonString = Json.stringify(ExperienceData.serializer(), experiences)
+            val jsonText = File(inputFilePath).readText()
+            val gameData = parseGameData(jsonText)
+            val newExperiences = extractFeatures(gameData, lastNGames, lastXAfterDraws)
+            val experiences = if (File(outputFilePath).exists()) {
+                val existingJson = File(outputFilePath).readText()
+                val existingExperiences = json.parse(ExperienceData.serializer(), existingJson)
+                existingExperiences.experiences.addAll(newExperiences.experiences)
+                existingExperiences
+            } else {
+                newExperiences
+            }
+
+            val jsonString = json.stringify(ExperienceData.serializer(), experiences)
 
             // Write the JSON string to the specified output file
             File(outputFilePath).apply {
                 parentFile.mkdirs() // Create directories if they do not exist
                 writeText(jsonString)
             }
+
+            println("now added to file")
         }
 
-        private fun parseGameData(json: String): GameData {
-            return Json.parse(GameData.serializer(), json)
+        @JvmStatic
+        fun extractFeaturesFromFile(inputFilePath: String, lastNGames: Int, lastXAfterDraws: Int): ExperienceData {
+            val jsonText = File(inputFilePath).readText()
+            val gameData = parseGameData(jsonText)
+            return extractFeatures(gameData, lastNGames, lastXAfterDraws)
+        }
+
+        private fun parseGameData(jsonText: String): GameData {
+            return json.parse(GameData.serializer(), jsonText)
         }
 
         private fun extractFeatures(gameData: GameData, lastNGames: Int, lastXAfterDraws: Int): ExperienceData {
@@ -55,6 +74,8 @@ class DQNFeatureExtractor private constructor() {
             var scoreDifference = 0
             var roundNumber = 0
             var roundPointValue = 1
+            var p1Score = 0
+            var p2Score = 0
             val lastDrawMoves = MutableList(lastXAfterDraws) { GameMove("N", "N") }
             val lastNMoves = MutableList(lastNGames) { GameMove("N", "N") }
 
@@ -64,7 +85,8 @@ class DQNFeatureExtractor private constructor() {
                 // Extract features
                 val state = extractState(
                     lastNMoves, lastDrawMoves, p1DynamiteLeft, p2DynamiteLeft,
-                    scoreDifference, roundNumber, roundPointValue, lastNGames, lastXAfterDraws
+                    scoreDifference, roundNumber, roundPointValue, p1Score, p2Score,
+                    lastNGames, lastXAfterDraws
                 )
 
                 // Determine action and reward
@@ -76,7 +98,8 @@ class DQNFeatureExtractor private constructor() {
                 val nextState = if (i + 1 < moves.size) {
                     extractState(
                         lastNMoves, lastDrawMoves, p1DynamiteLeft, p2DynamiteLeft,
-                        scoreDifference, roundNumber + 1, roundPointValue, lastNGames, lastXAfterDraws
+                        scoreDifference, roundNumber + 1, roundPointValue, p1Score, p2Score,
+                        lastNGames, lastXAfterDraws
                     )
                 } else { // if no next state then make it just all 0
                     List(state.size) { 0f }
@@ -89,9 +112,11 @@ class DQNFeatureExtractor private constructor() {
                 // Adjust score based on reward
                 if (reward > 0) {
                     scoreDifference += roundPointValue
+                    p1Score += roundPointValue
                     roundPointValue = 1
                 } else if (reward < 0) {
                     scoreDifference -= roundPointValue
+                    p2Score += roundPointValue
                     roundPointValue = 1
                 } else {
                     roundPointValue++
@@ -121,10 +146,12 @@ class DQNFeatureExtractor private constructor() {
             scoreDifference: Int,
             roundNumber: Int,
             roundPointValue: Int,
+            p1Score: Int,
+            p2Score: Int,
             lastNGames: Int,
             lastXAfterDraws: Int
         ): List<Float> {
-            val stateSize = lastNGames * moveSet.size * 2 + lastXAfterDraws * moveSet.size * 2 + 5
+            val stateSize = lastNGames * moveSet.size * 2 + lastXAfterDraws * moveSet.size * 2 + 7
             val state = MutableList(stateSize) { 0f }
 
             // Fill last N games moves
@@ -139,21 +166,23 @@ class DQNFeatureExtractor private constructor() {
                 encodeMove(lastDrawMoves[i].p2, state, lastNGames * moveSet.size * 2 + i * moveSet.size * 2 + moveSet.size)
             }
 
-            // Add dynamite left, score difference, round number, and round point value
+            // Add dynamite left, score difference, round number, round point value, and current scores
             val offset = lastNGames * moveSet.size * 2 + lastXAfterDraws * moveSet.size * 2
             state[offset] = p1DynamiteLeft.toFloat()
             state[offset + 1] = p2DynamiteLeft.toFloat()
             state[offset + 2] = scoreDifference.toFloat()
             state[offset + 3] = roundNumber.toFloat()
             state[offset + 4] = roundPointValue.toFloat()
+            state[offset + 5] = p1Score.toFloat()
+            state[offset + 6] = p2Score.toFloat()
 
             return state
         }
 
         private fun encodeMove(move: String, state: MutableList<Float>, startIndex: Int) {
-            val index = moveSet.indexOf(move) //find the index of this move
+            val index = moveSet.indexOf(move)
             if (index != -1) {
-                state[startIndex + index] = 1f //mark the index of this sublist corresponding to the right move
+                state[startIndex + index] = 1f
             }
         }
 
@@ -180,8 +209,8 @@ class DQNFeatureExtractor private constructor() {
 
         @JvmStatic
         fun visualizeExperiences(inputFilePath: String, lastNGames: Int, lastXAfterDraws: Int) {
-            val json = File(inputFilePath).readText()
-            val gameData = parseGameData(json)
+            val jsonText = File(inputFilePath).readText()
+            val gameData = parseGameData(jsonText)
             val experiences = extractFeatures(gameData, lastNGames, lastXAfterDraws)
 
             for ((index, experience) in experiences.experiences.withIndex()) {
@@ -216,26 +245,26 @@ class DQNFeatureExtractor private constructor() {
             println("Score Difference: ${state[offset + 2]}")
             println("Round Number: ${state[offset + 3]}")
             println("Round Point Value: ${state[offset + 4]}")
+            println("P1 Current Score: ${state[offset + 5]}")
+            println("P2 Current Score: ${state[offset + 6]}")
         }
 
         private fun decodeMove(state: List<Float>, startIndex: Int): String {
             for (i in moveSet.indices) {
                 if (state[startIndex + i] == 1f) {
-                    return moveSet[i] //decode and find which move this corresponds to
+                    return moveSet[i]
                 }
             }
             return "N"
         }
     }
-
-
 }
 
 fun main() {
     val inputFilePath = "GeneratedGames/game_moves_0.json"
     val outputFilePath = "ModelData/experiences.json"
-    val lastNGames = 2
-    val lastXAfterDraws = 2
+    val lastNGames = 10
+    val lastXAfterDraws = 5
     DQNFeatureExtractor.generateExperiencesJson(inputFilePath, outputFilePath, lastNGames, lastXAfterDraws)
     println("Experiences JSON has been generated and saved to $outputFilePath")
     DQNFeatureExtractor.visualizeExperiences(inputFilePath, lastNGames, lastXAfterDraws)
