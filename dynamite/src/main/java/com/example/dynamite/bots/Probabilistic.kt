@@ -31,7 +31,10 @@ class Probabilistic : Bot {
 
         // Determine the next move
         val nextMove = when {
-            shouldUseDynamite(gamestate.getRounds().size) -> Move.D
+            shouldUseDynamite(gamestate.getRounds().size) -> {
+                dynamiteCount--
+                Move.D
+            }
             shouldUseWaterBomb() -> Move.W
             else -> getBestCounterMove()
         }
