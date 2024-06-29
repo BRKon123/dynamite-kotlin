@@ -35,21 +35,7 @@ targetCompatibility = '1.7'
 
 
 
-jar {
-    manifest {
-        attributes 'Main-Class': 'com.example.dynamite.BotRunner'
-    }
-    // Include specific JAR files from the libs directory
-    from {
-        def jars = [
-                '/Users/rutkon/Work/Training/dynamite-kotlin/dynamite/libs/javarunner-1.0-bot.jar',
-                '/Users/rutkon/Work/Training/dynamite-kotlin/dynamite/libs/Dyanmite-Runner-Java.jar'
-        ]
-        jars.collect { zipTree(it) }
-    }
 
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
 
 task printCompileClasspath {
     doLast {
