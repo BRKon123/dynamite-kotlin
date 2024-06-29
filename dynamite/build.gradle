@@ -39,15 +39,24 @@ jar {
     manifest {
         attributes 'Main-Class': 'com.example.dynamite.BotRunner'
     }
-    // Collect and copy all project's files excluding specific directories
-    from { configurations.compileClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
-
-    // Exclude files from specific packages
-    exclude 'com/example/dynamite/dqnTraining/**'
-    exclude 'com/example/dynamite/jsonGeneration/**'
-    exclude 'com/example/dynamite/experienceGeneration/**'
+    // Include specific JAR files from the libs directory
+    from {
+        def jars = [
+                '/Users/rutkon/Work/Training/dynamite-kotlin/dynamite/libs/javarunner-1.0-bot.jar',
+                '/Users/rutkon/Work/Training/dynamite-kotlin/dynamite/libs/Dyanmite-Runner-Java.jar'
+        ]
+        jars.collect { zipTree(it) }
+    }
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+task printCompileClasspath {
+    doLast {
+        configurations.compileClasspath.each { file ->
+            println file
+        }
+    }
 }
 
 
